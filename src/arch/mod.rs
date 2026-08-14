@@ -1,6 +1,6 @@
 // src/arch/mod.rs
 
-pub mod serial;
+pub mod x86_64;
 pub use x86_64::serial;
 /// Low-level x86 port output instruction
 pub unsafe fn outb(port: u16, val: u8) {
