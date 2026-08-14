@@ -1,4 +1,4 @@
-#![no_std]
+
 
 /// Reads a single raw byte from x86 I/O Port 0x60 (PS/2 Data Port)
 pub fn read_io_port_60() -> u8 {
