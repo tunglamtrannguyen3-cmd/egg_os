@@ -1,5 +1,5 @@
 pub mod port;
-pub mod scancodes;
+pub mod scancode;
 
 use scancodes::KeyboardState;
 
