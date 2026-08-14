@@ -39,10 +39,10 @@ pub fn handle_input(key: char) {
             crate::arch::log("[EggOS Power Management]: Power Saver Profile Active\n");
         }
         '2' => {
-            saver.set_profile(PowerProfile::HighPerformance);
+            // FIXED: Changed HighPerformance to Performance to match PowerProfile enum definition
+            saver.set_profile(PowerProfile::Performance);
             crate::arch::log("[EggOS Power Management]: High Performance Profile Active\n");
         }
         _ => {}
     }
 }
-
