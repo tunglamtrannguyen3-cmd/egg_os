@@ -1,3 +1,5 @@
+// src/main.rs
+
 #![no_std]
 #![no_main]
 
@@ -14,7 +16,6 @@ use capability::{allocate_with_capability, CapRights};
 use ipc::IpcChannel;
 use ui::DisplayMode;
 
-#[panic_handler]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     kernel_main();
@@ -27,7 +28,6 @@ pub extern "C" fn _start() -> ! {
     }
 }
 
-#[panic_handler]
 pub fn kernel_main() {
     crate::arch::log("=====================================================\n");
     crate::arch::log("               EggOS Microkernel v1.0                \n");
@@ -76,4 +76,14 @@ pub fn kernel_main() {
     crate::arch::log("\n=====================================================\n");
     crate::arch::log(" [EggOS Kernel]: All systems online. Ready for tasks. \n");
     crate::arch::log("=====================================================\n");
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            core::arch::x86_64::_mm_pause();
+        }
+    }
 }
