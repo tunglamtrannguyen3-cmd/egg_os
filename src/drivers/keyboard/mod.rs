@@ -1,7 +1,7 @@
 pub mod port;
 pub mod scancode;
 
-use scancodes::KeyboardState;
+use scancode::KeyboardState;
 
 pub struct Keyboard {
     state: KeyboardState,
