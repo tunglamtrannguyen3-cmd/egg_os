@@ -14,6 +14,10 @@ pub fn render_desktop(mode: DisplayMode, battery_level: u8, power_saving: bool) 
 }
 
 pub fn show_low_battery_dialog(framebuffer: &mut [u32], width: usize, height: usize) {
-    crate::arch::log("[EggOS UI Alert]: Low Battery Warning Dialog Triggered\n");
-    // TODO: Add pixel rendering logic for the dialog box here when ready
-}
+    crate::arch::log("\n=====================================================\n");
+    crate::arch::log(" [WARNING]: Low Battery Detected! (<= 15% Remaining)  \n");
+    crate::arch::log("-----------------------------------------------------\n");
+    crate::arch::log(" Please choose an action:                             \n");
+    crate::arch::log("   [1] Turn on Battery Saving                        \n");
+    crate::arch::log("   [2] Plugged In / Charging                         \n");
+    crate::arch::log("=====================================================\n\n");
