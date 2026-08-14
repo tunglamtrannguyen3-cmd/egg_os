@@ -1,3 +1,5 @@
+// src/ui/mod.rs
+
 pub mod framebuffer;
 pub mod status_bar;
 
@@ -13,7 +15,7 @@ pub fn render_desktop(mode: DisplayMode, battery_level: u8, power_saving: bool) 
     StatusBar::render(&mut fb, battery_level, power_saving);
 }
 
-pub fn show_low_battery_dialog(framebuffer: &mut [u32], width: usize, height: usize) {
+pub fn show_low_battery_dialog(_framebuffer: &mut [u32], _width: usize, _height: usize) {
     crate::arch::log("\n=====================================================\n");
     crate::arch::log(" [WARNING]: Low Battery Detected! (<= 15% Remaining)  \n");
     crate::arch::log("-----------------------------------------------------\n");
@@ -21,3 +23,4 @@ pub fn show_low_battery_dialog(framebuffer: &mut [u32], width: usize, height: us
     crate::arch::log("   [1] Turn on Battery Saving                        \n");
     crate::arch::log("   [2] Plugged In / Charging                         \n");
     crate::arch::log("=====================================================\n\n");
+}
