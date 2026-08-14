@@ -1,36 +1,10 @@
-name: Build EggOS ISO
-
-on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xorriso
-
-      - name: Install Rust Nightly & rust-src
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rust-src
-
-      - name: Build Kernel
-        run: cargo build -Z json-target-spec --verbose
+- name: Build Kernel
+        run: cargo build --verbose
 
       - name: Package ISO with Limine
         run: |
           mkdir -p iso/boot
-          cp target/x86_64-egg_os/debug/egg_os iso/boot/
+          cp target/x86_64-unknown-none/debug/egg_os iso/boot/
           cp limine/limine-bios.sys limine/limine-bios-cd.bin iso/boot/
 
           cat << 'EOF' > iso/boot/limine.conf
@@ -45,9 +19,3 @@ jobs:
             iso -o egg_os.iso
 
           ./limine/limine bios-install egg_os.iso
-
-      - name: Upload ISO Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: egg_os-iso
-          path: egg_os.iso
