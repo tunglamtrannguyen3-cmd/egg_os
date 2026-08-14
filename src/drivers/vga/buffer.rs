@@ -1,4 +1,4 @@
-#![no_std]
+
 
 use super::colors::{Color, ColorCode};
 
