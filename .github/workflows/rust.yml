@@ -1,5 +1,43 @@
-- name: Build Kernel
+name: Build EggOS ISO
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorriso mtools build-essential git
+
+      - name: Install Rust Nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Build Kernel
         run: cargo build --verbose
+
+      - name: Setup Limine Bootloader
+        run: |
+          if [ ! -f "limine/limine" ]; then
+            echo "Limine binary not found locally. Fetching binary release branch..."
+            git clone https://github.com/limine-bootloader/limine.git --branch v7.x-binary --depth 1 limine_build
+            make -C limine_build
+            mkdir -p limine
+            cp limine_build/limine limine_build/limine-bios.sys limine_build/limine-bios-cd.bin limine/
+          fi
 
       - name: Package ISO with Limine
         run: |
@@ -19,3 +57,9 @@
             iso -o egg_os.iso
 
           ./limine/limine bios-install egg_os.iso
+
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: egg_os-iso
+          path: egg_os.iso
