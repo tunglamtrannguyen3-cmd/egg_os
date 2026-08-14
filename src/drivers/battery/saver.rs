@@ -1,39 +1,91 @@
-// src/drivers/battery/mod.rs
+// src/drivers/battery/saver.rs
 
-pub mod ec;
-pub mod saver;
-pub mod state;
+use super::state::{BatteryInfo, BatteryStatus, PowerProfile};
 
-use spin::Mutex;
-pub use state::{BatteryInfo, BatteryStatus, PowerProfile};
-pub use saver::{BatterySaver, PowerPromptState, PowerChoice};
-
-pub static BATTERY_SAVER: Mutex<BatterySaver> = Mutex::new(BatterySaver::new());
-
-pub fn init() {
-    crate::arch::log("[EggOS Driver: x86_64 Battery Subsystem Online]\n");
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerPromptState {
+    None,
+    AwaitingLowBatteryChoice,
 }
 
-/// Periodic battery polling function called by kernel loop or timer interrupt
-pub fn poll(framebuffer: Option<&mut [u32]>, screen_width: usize, screen_height: usize) {
-    // 1. Read battery telemetry directly from physical x86 EC
-    let info = ec::EmbeddedController::read_status();
-    
-    // 2. Evaluate state and update saver profile/prompt state
-    let mut saver = BATTERY_SAVER.lock();
-    saver.update(&info);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerChoice {
+    EnableSaver,
+    PluggedInCharging,
+}
 
-    // 3. Check your rich prompt state from saver.rs
-    if saver.prompt_state == PowerPromptState::AwaitingLowBatteryChoice {
-        if let Some(fb) = framebuffer {
-            crate::ui::show_low_battery_dialog(fb, screen_width, screen_height);
+pub struct BatterySaver {
+    pub enabled: bool,
+    pub auto_enable: bool,
+    pub threshold_percentage: u8,
+    pub active_profile: PowerProfile,
+    pub prompt_state: PowerPromptState,
+}
+
+impl BatterySaver {
+    pub const fn new() -> Self {
+        Self {
+            enabled: false,
+            auto_enable: true,
+            threshold_percentage: 15,
+            active_profile: PowerProfile::Balanced,
+            prompt_state: PowerPromptState::None,
         }
     }
-}
 
-/// Routes user keypresses from PS/2 keyboard to battery power profile manager
-pub fn handle_input(key: char) {
-    let mut saver = BATTERY_SAVER.lock();
-    // Leverages your built-in handle_key_input method directly!
-    saver.handle_key_input(key);
+    pub fn update(&mut self, info: &BatteryInfo) -> PowerProfile {
+        match info.status {
+            BatteryStatus::Charging | BatteryStatus::Full => {
+                self.enabled = false;
+                self.prompt_state = PowerPromptState::None;
+                self.active_profile = PowerProfile::Performance;
+            }
+            BatteryStatus::Discharging => {
+                if info.percentage <= self.threshold_percentage {
+                    if !self.enabled && self.prompt_state == PowerPromptState::None {
+                        self.prompt_state = PowerPromptState::AwaitingLowBatteryChoice;
+                    }
+                } else {
+                    self.prompt_state = PowerPromptState::None;
+                    if !self.enabled {
+                        self.active_profile = PowerProfile::Balanced;
+                    }
+                }
+            }
+            BatteryStatus::NotPresent | BatteryStatus::Unknown => {
+                self.active_profile = PowerProfile::Balanced;
+            }
+        }
+        self.active_profile
+    }
+
+    pub fn handle_key_input(&mut self, key: char) -> Option<PowerProfile> {
+        if self.prompt_state != PowerPromptState::AwaitingLowBatteryChoice {
+            return None;
+        }
+
+        match key {
+            '1' => Some(self.apply_choice(PowerChoice::EnableSaver)),
+            '2' => Some(self.apply_choice(PowerChoice::PluggedInCharging)),
+            _ => None,
+        }
+    }
+
+    pub fn apply_choice(&mut self, choice: PowerChoice) -> PowerProfile {
+        self.prompt_state = PowerPromptState::None;
+
+        match choice {
+            PowerChoice::EnableSaver => {
+                self.enabled = true;
+                self.active_profile = PowerProfile::PowerSaver;
+                crate::arch::log("[EggOS Power]: Battery Saver Profile Active.\n");
+            }
+            PowerChoice::PluggedInCharging => {
+                self.enabled = false;
+                self.active_profile = PowerProfile::Performance;
+                crate::arch::log("[EggOS Power]: Charger connected! Performance Boost Active!\n");
+            }
+        }
+        self.active_profile
+    }
 }
