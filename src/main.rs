@@ -14,6 +14,7 @@ use capability::{allocate_with_capability, CapRights};
 use ipc::IpcChannel;
 use ui::DisplayMode;
 
+#[panic_handler]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     kernel_main();
@@ -26,6 +27,7 @@ pub extern "C" fn _start() -> ! {
     }
 }
 
+#[panic_handler]
 pub fn kernel_main() {
     crate::arch::log("=====================================================\n");
     crate::arch::log("               EggOS Microkernel v1.0                \n");
