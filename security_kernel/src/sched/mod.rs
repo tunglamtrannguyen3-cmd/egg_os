@@ -12,10 +12,16 @@ pub struct TaskManager {
 impl TaskManager {
     pub const fn new() -> Self {
         Self {
-            tasks: [None; 16],
+            tasks: [const { None }; 16],
             count: 0,
         }
     }
+}
+
+/// Global scheduler initialization called during kernel boot in main.rs
+pub fn init() {
+    // Scheduler initialization logic
+}
 
     pub fn spawn(&mut self, name: &'static str, background_tier: BackgroundTier) -> Option<u64> {
         if self.count >= self.tasks.len() {
