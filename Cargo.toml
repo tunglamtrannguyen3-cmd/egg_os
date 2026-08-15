@@ -1,17 +1,8 @@
-[package]
-name = "egg_os"
-version = "0.1.0"
-edition = "2021"
-authors = ["Team Eggchese <dev@eggchese.org>"]
-description = "Legends said Arch and Gentoo are still fighting about compiling. We hatched .ae and left - pure Rust SASOS"
+# egg_os/Cargo.toml
+[workspace]
+members = [
+    "host_kernel",
+    "security_kernel",
+]
+resolver = "2"
 
-[dependencies]
-spin = "0.9.8"
-
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
-lto = true
-opt-level = 3

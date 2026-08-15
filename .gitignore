@@ -1,3 +1,6 @@
 /target
-**/*.rs.bk
-*.log
+/**/target
+*.swp
+*.o
+*.bin
+.DS_Store
