@@ -19,3 +19,7 @@ impl StatusBar {
         }
     }
 }
+
+pub fn show_job_finished_toast(app_name: &'static str) {
+    let _ = app_name; // Render status bar toast logic here
+}
