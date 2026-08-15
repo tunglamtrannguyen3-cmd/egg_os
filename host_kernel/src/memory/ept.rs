@@ -30,3 +30,66 @@ where
 
     Ok(())
 }
+
+use bitflags::bitflags;
+use spin::Mutex;
+
+pub static HOST_PHYSICAL_ALLOCATOR: Mutex<HostMemoryManager> = Mutex::new(HostMemoryManager::new());
+
+pub struct HostMemoryManager {
+    next_free_frame: u64,
+}
+
+impl HostMemoryManager {
+    pub const fn new() -> Self {
+        Self { next_free_frame: 0x1000000 }
+    }
+
+    pub fn allocate_frame(&mut self) -> u64 {
+        let frame = self.next_free_frame;
+        self.next_free_frame += 4096;
+        frame
+    }
+}
+
+pub fn init_host_memory() {
+    // Initialization logic for EPT PML4 table structures
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct EptFlags: u64 {
+        const READ              = 1 << 0;
+        const WRITE             = 1 << 1;
+        const EXECUTE           = 1 << 2;
+        const EPT_MEMORY_WB     = 6 << 3;
+        const IGNORE_PAT        = 1 << 6;
+        const PAGE_SIZE_2MB     = 1 << 7;
+        const ACCESSED          = 1 << 8;
+        const DIRTY             = 1 << 9;
+        const USER_EXECUTE      = 1 << 10;
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct EptEntry(u64);
+
+impl EptEntry {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+}
+
+#[repr(C, align(4096))]
+pub struct EptPageTable {
+    pub entries: [EptEntry; 512],
+}
+
+impl EptPageTable {
+    pub const fn new() -> Self {
+        Self {
+            entries: [EptEntry::new(); 512],
+        }
+    }
+}
