@@ -42,20 +42,27 @@ jobs:
       - name: Package ISO with Limine
         run: |
           mkdir -p iso/boot
-          cp target/x86_64-unknown-none/debug/egg_os iso/boot/
+          
+          # Copy both workspace kernel binaries
+          cp target/x86_64-unknown-none/debug/host_kernel iso/boot/
+          cp target/x86_64-unknown-none/debug/security_kernel iso/boot/
           cp limine/limine-bios.sys limine/limine-bios-cd.bin iso/boot/
 
+          # Configure Limine to boot host_kernel and pass security_kernel as a module
           cat << 'EOF' > iso/boot/limine.conf
           timeout: 0
           /EggOS
               protocol: multiboot2
-              path: boot:///boot/egg_os
+              path: boot:///boot/host_kernel
+              module_path: boot:///boot/security_kernel
           EOF
 
+          # Create ISO image
           xorriso -as mkisofs -b boot/limine-bios-cd.bin \
             -no-emul-boot -boot-load-size 4 -boot-info-table \
             iso -o egg_os.iso
 
+          # Install Limine BIOS stage to the ISO
           ./limine/limine bios-install egg_os.iso
 
       - name: Upload ISO Artifact
