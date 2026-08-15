@@ -1,45 +1,4 @@
-name: Build EggOS ISO
-
-on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xorriso mtools build-essential git
-
-      - name: Install Rust Nightly
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rust-src
-
-      - name: Build Kernel
-        run: cargo build --verbose
-
-      - name: Setup Limine Bootloader
-        run: |
-          if [ ! -f "limine/limine" ]; then
-            echo "Limine binary not found locally. Fetching binary release branch..."
-            git clone https://github.com/limine-bootloader/limine.git --branch v7.x-binary --depth 1 limine_build
-            make -C limine_build
-            mkdir -p limine
-            cp limine_build/limine limine_build/limine-bios.sys limine_build/limine-bios-cd.bin limine/
-          fi
-
-      - name: Package ISO with Limine
+- name: Package ISO with Limine
         run: |
           mkdir -p iso/boot
           
@@ -48,13 +7,14 @@ jobs:
           cp target/x86_64-unknown-none/debug/security_kernel iso/boot/
           cp limine/limine-bios.sys limine/limine-bios-cd.bin iso/boot/
 
-          # Configure Limine to boot host_kernel and pass security_kernel as a module
+          # Configure Limine with correct v7 syntax
           cat << 'EOF' > iso/boot/limine.conf
-          timeout: 0
+          timeout: 5
+
           /EggOS
               protocol: multiboot2
-              path: boot:///boot/host_kernel
-              module_path: boot:///boot/security_kernel
+              kernel_path: boot():/boot/host_kernel
+              module_path: boot():/boot/security_kernel
           EOF
 
           # Create ISO image
@@ -64,9 +24,3 @@ jobs:
 
           # Install Limine BIOS stage to the ISO
           ./limine/limine bios-install egg_os.iso
-
-      - name: Upload ISO Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: egg_os-iso
-          path: egg_os.iso
