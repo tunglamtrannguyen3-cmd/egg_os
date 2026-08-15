@@ -1,8 +1,33 @@
-# egg_os/Cargo.toml
 [workspace]
+resolver = "2"
 members = [
     "host_kernel",
     "security_kernel",
 ]
-resolver = "2"
 
+[workspace.package]
+version = "0.2.0"
+authors = ["tunglamtrannguyen3"]
+edition = "2021"
+
+[workspace.dependencies]
+x86_64 = { version = "0.14", default-features = false, features = ["instructions"] }
+spin = "0.9"
+bitflags = "2.4"
+volatile = "0.5"
+
+# -----------------------------------------------------------------------------
+# Development Profile (cargo build)
+# -----------------------------------------------------------------------------
+[profile.dev]
+panic = "abort"          # Disables unwinding landing pads (required for no_std)
+overflow-checks = true   # Catches integer overflows during kernel development
+
+# -----------------------------------------------------------------------------
+# Release Profile (cargo build --release)
+# -----------------------------------------------------------------------------
+[profile.release]
+panic = "abort"          # Disables unwinding landing pads
+opt-level = "z"          # Optimizes for binary size (keeps kernel images slim)
+lto = true               # Link-Time Optimization across host and security kernels
+codegen-units = 1        # Maximizes cross-crate compiler optimizations

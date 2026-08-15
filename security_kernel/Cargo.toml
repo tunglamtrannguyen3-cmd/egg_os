@@ -1,16 +1,12 @@
-# egg_os/security_kernel/Cargo.toml
 [package]
 name = "security_kernel"
-version = "0.2.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-x86_64 = "0.14"
-spin = "0.9"
-
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
+x86_64.workspace = true
+spin.workspace = true
+bitflags.workspace = true
+volatile.workspace = true
 

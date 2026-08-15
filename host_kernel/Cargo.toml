@@ -1,16 +1,13 @@
-# egg_os/host_kernel/Cargo.toml
 [package]
 name = "host_kernel"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-x86_64 = "0.14"
-spin = "0.9"
+x86_64.workspace = true
+spin.workspace = true
+bitflags.workspace = true
+volatile.workspace = true
 
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
 
