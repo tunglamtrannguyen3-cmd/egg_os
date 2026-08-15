@@ -73,3 +73,12 @@ impl VCpu {
     }
 }
 
+// Add this near top or bottom of host_kernel/src/vmm/mod.rs
+use core::arch::global_asm;
+
+global_asm!(
+    ".global run_vcpu_loop",
+    "run_vcpu_loop:",
+    "  # Assembly VM-entry / VM-exit loop stub",
+    "  ret"
+);
