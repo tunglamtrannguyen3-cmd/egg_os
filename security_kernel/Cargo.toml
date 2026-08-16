@@ -10,3 +10,7 @@ spin.workspace = true
 bitflags.workspace = true
 volatile.workspace = true
 
+[[bin]]
+name = "security_kernel"
+path = "src/main.rs"
+harness = false

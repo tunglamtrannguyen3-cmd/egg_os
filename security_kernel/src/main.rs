@@ -22,9 +22,7 @@ pub extern "C" fn _start() -> ! {
 
     loop {
         #[cfg(target_arch = "x86_64")]
-        unsafe {
-            core::arch::x86_64::_mm_pause();
-        }
+        core::arch::x86_64::_mm_pause();
     }
 }
 
@@ -82,8 +80,6 @@ pub fn kernel_main() {
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {
         #[cfg(target_arch = "x86_64")]
-        unsafe {
-            core::arch::x86_64::_mm_pause();
-        }
+        core::arch::x86_64::_mm_pause();
     }
 }

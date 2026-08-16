@@ -60,14 +60,15 @@ extern "C" fn generic_exception_handler() {
 pub fn init() {
     unsafe {
         // Register core CPU exception handlers
-        IDT.entries[0].set_handler(generic_exception_handler as usize);  // #DE Divide Error
-        IDT.entries[8].set_handler(generic_exception_handler as usize);  // #DF Double Fault
-        IDT.entries[13].set_handler(generic_exception_handler as usize); // #GP General Protection Fault
-        IDT.entries[14].set_handler(generic_exception_handler as usize); // #PF Page Fault
+        IDT.entries[0].set_handler(generic_exception_handler as *const () as usize);  // #DE Divide Error
+        IDT.entries[8].set_handler(generic_exception_handler as *const () as usize);  // #DF Double Fault
+        IDT.entries[13].set_handler(generic_exception_handler as *const () as usize); // #GP General Protection Fault
+        IDT.entries[14].set_handler(generic_exception_handler as *const () as usize); // #PF Page Fault
 
         let descriptor = IdtDescriptor {
             limit: (core::mem::size_of::<Idt>() - 1) as u16,
-            base: &IDT as *const _ as u64,
+            base: &raw const IDT as *const _ as u64,
+        
         };
 
         // Load pointer into CPU's IDTR register

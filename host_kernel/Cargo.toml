@@ -10,4 +10,10 @@ spin.workspace = true
 bitflags.workspace = true
 volatile.workspace = true
 
+[[bin]]
+name = "host_kernel"
+path = "src/main.rs"
+harness = false
+
+
 
