@@ -1,4 +1,43 @@
-- name: Package ISO with Limine
+name: Egg OS Security Kernel CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-package:
+    name: Build Kernel & Package ISO
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorriso mtools
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-none
+          components: rustfmt, clippy
+
+      - name: Fetch Limine binaries
+        run: |
+          git clone https://github.com/limine-bootloader/limine.git --branch v7.x-binary --depth 1
+          make -C limine
+
+      - name: Verify compilation & build binaries
+        run: cargo build --target x86_64-unknown-none
+
+      - name: Package ISO with Limine
         run: |
           mkdir -p iso/boot
           
@@ -24,3 +63,9 @@
 
           # Install Limine BIOS stage to the ISO
           ./limine/limine bios-install egg_os.iso
+
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: egg_os-iso
+          path: egg_os.iso
