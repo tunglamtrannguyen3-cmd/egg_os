@@ -16,7 +16,7 @@ checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
 
 [[package]]
 name = "host_kernel"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bitflags",
  "spin",
@@ -47,7 +47,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "security_kernel"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bitflags",
  "spin",
