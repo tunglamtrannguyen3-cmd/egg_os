@@ -1,8 +1,5 @@
-
-
-#[allow(dead_code)]
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Color {
     Black = 0,
     Blue = 1,
@@ -23,6 +20,7 @@ pub enum Color {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct ColorCode(pub u8);
 
 impl ColorCode {
@@ -30,4 +28,3 @@ impl ColorCode {
         Self((background as u8) << 4 | (foreground as u8))
     }
 }
-

@@ -1,38 +1,20 @@
-// src/drivers/battery/mod.rs
-
-pub mod ec;
-pub mod saver;
 pub mod state;
 
-use spin::Mutex;
-pub use state::{BatteryInfo, BatteryStatus, PowerProfile};
-pub use saver::{BatterySaver, PowerPromptState, PowerChoice};
+use crate::ui::show_low_battery_dialog;
+use crate::ui::Framebuffer;
 
-pub static BATTERY_SAVER: Mutex<BatterySaver> = Mutex::new(BatterySaver::new());
+pub use state::{
+    BatteryInfo, BatterySaver, BatteryStatus, PowerProfile, PowerPromptState, BATTERY_SAVER,
+};
 
-pub fn init() {
-    crate::arch::log("[EggOS Driver: x86_64 Battery Subsystem Online]\n");
-}
-
-/// Periodic battery polling function called by kernel loop or timer interrupt
-pub fn poll(framebuffer: Option<&mut [u32]>, screen_width: usize, screen_height: usize) {
-    // 1. Read battery telemetry from physical x86 EC
-    let info = ec::EmbeddedController::read_status();
-    
-    // 2. Evaluate state and update saver profile/prompt state
-    let mut saver = BATTERY_SAVER.lock();
-    saver.update(&info);
-
-    // 3. Check the prompt state from saver.rs
-    if saver.prompt_state == PowerPromptState::AwaitingLowBatteryChoice {
-        if let Some(fb) = framebuffer {
-            crate::ui::show_low_battery_dialog(fb, screen_width, screen_height);
-        }
+pub fn check_battery_status(fb: &mut Framebuffer, screen_width: usize, screen_height: usize) {
+    let saver = BATTERY_SAVER.lock();
+    if saver.prompt_state == PowerPromptState::AwaitingLowBatteryAck {
+        show_low_battery_dialog(fb, screen_width, screen_height);
     }
 }
 
-/// Routes user keypresses from PS/2 keyboard to battery power profile manager
-pub fn handle_input(key: char) {
+pub fn handle_key_input(key: char) {
     let mut saver = BATTERY_SAVER.lock();
     saver.handle_key_input(key);
 }

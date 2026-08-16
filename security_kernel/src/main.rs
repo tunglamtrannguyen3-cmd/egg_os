@@ -1,4 +1,4 @@
-// src/main.rs
+// security_kernel/src/main.rs
 
 #![no_std]
 #![no_main]
@@ -12,9 +12,9 @@ pub mod sched;
 pub mod syscall;
 pub mod ui;
 
+use crate::ui::framebuffer::{DisplayMode, Framebuffer};
 use capability::{allocate_with_capability, CapRights};
 use ipc::IpcChannel;
-use ui::DisplayMode;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
@@ -28,8 +28,8 @@ pub extern "C" fn _start() -> ! {
 
 pub fn kernel_main() {
     crate::arch::log("=====================================================\n");
-    crate::arch::log("               EggOS Microkernel v1.0                \n");
-    crate::arch::log("   Adaptive Memory • Capability Gates • Dynamic UI   \n");
+    crate::arch::log("             EggOS Dual-Kernel Engine v1.0           \n");
+    crate::arch::log("  Host VMX Hypervisor • Security Domain • GUI Engine \n");
     crate::arch::log("=====================================================\n\n");
 
     memory::init();
@@ -37,21 +37,27 @@ pub fn kernel_main() {
     sched::init();
     ipc::init();
     syscall::init();
-    ui::init();
 
-    crate::arch::log("\n-----------------------------------------------------\n");
-    crate::arch::log("[EggOS Kernel]: Boot Sequence Completed Successfully.\n");
+    // Initialize GUI Framebuffer via Host-mapped MMIO
+    let mut fb = Framebuffer::new(DisplayMode::DEFAULT_1080P);
+
+    // Clear background to dark navy blue (0x000F172A)
+    unsafe {
+        fb.draw_rect(0, 0, fb.mode.width, fb.mode.height, 0x000F_172A);
+    }
+
+    // Render Dual-Kernel GUI status bar
+    ui::status_bar::draw(&mut fb);
+
+    crate::arch::log("-----------------------------------------------------\n");
+    crate::arch::log("[EggOS Dual-Kernel]: Security Domain GUI Active.\n");
     crate::arch::log("-----------------------------------------------------\n\n");
 
-    crate::arch::log("[Self-Test 1]: Rendering Dynamic Resolution Status Bar...\n");
-    ui::render_desktop(DisplayMode::DEFAULT_1080P, 100, false);
-    crate::arch::log(" -> Framebuffer render successful.\n\n");
-
-    crate::arch::log("[Self-Test 2]: Testing Adaptive Capped Memory Stream...\n");
+    crate::arch::log("[Self-Test]: Testing Capped Memory Stream...\n");
     let test_bytes = 150 * 1024;
     match allocate_with_capability(2, test_bytes, CapRights::READ_WRITE) {
         Ok((ptr, token)) => {
-            crate::arch::log(" -> Allocation & Capability Token Minting: SUCCESS\n");
+            crate::arch::log(" -> Memory Allocation & Token Minting: SUCCESS\n");
 
             match capability::GLOBAL_CAP_GATE.lock().verify_access(
                 token.id,
@@ -59,7 +65,7 @@ pub fn kernel_main() {
                 test_bytes,
                 CapRights::READ_WRITE,
             ) {
-                Ok(_) => crate::arch::log(" -> Capability Gate Verification: GRANTED\n"),
+                Ok(_) => crate::arch::log(" -> Capability Gate Access: GRANTED\n"),
                 Err(err) => crate::arch::log(err),
             }
 
@@ -72,7 +78,7 @@ pub fn kernel_main() {
     }
 
     crate::arch::log("\n=====================================================\n");
-    crate::arch::log(" [EggOS Kernel]: All systems online. Ready for tasks. \n");
+    crate::arch::log(" [EggOS Dual-Kernel]: All subsystems operational.     \n");
     crate::arch::log("=====================================================\n");
 }
 
