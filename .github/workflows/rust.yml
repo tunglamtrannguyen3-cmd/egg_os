@@ -5,21 +5,44 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Allows manual run button in GitHub UI
-  
-- name: Assemble ISO Image
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build Kernels and Package ISO
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorriso mtools
+
+      - name: Setup Rust Nightly Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src, llvm-tools-preview
+          targets: x86_64-unknown-none
+
+      - name: Build Host Kernel
+        run: cargo build --manifest-path host_kernel/Cargo.toml --target x86_64-unknown-none
+
+      - name: Build Security Kernel
+        run: cargo build --manifest-path security_kernel/Cargo.toml --target x86_64-unknown-none
+
+      - name: Assemble ISO Image
         run: |
           mkdir -p iso_root/boot iso_root/limine
           cp target/x86_64-unknown-none/debug/host_kernel iso_root/boot/kernel.elf
 
-          # Write limine.conf stripped of leading YAML indentation spaces
-          cat << 'EOF' > iso_root/boot/limine.conf
-timeout: 3
-
-/EggOS
-    protocol: limine
-    kernel_path: boot():/boot/kernel.elf
-EOF
+          # Write limine.conf cleanly using printf (prevents YAML indentation errors)
+          printf "timeout: 3\n\n/EggOS\n    protocol: limine\n    kernel_path: boot():/boot/kernel.elf\n" > iso_root/boot/limine.conf
 
           # Mirror config to root and limine directories
           cp iso_root/boot/limine.conf iso_root/limine.conf
@@ -42,3 +65,9 @@ EOF
 
           # Install BIOS bootloader record
           ./limine/limine bios-install egg_os.iso
+
+      - name: Upload EggOS ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: egg_os-bootable-iso
+          path: egg_os.iso
