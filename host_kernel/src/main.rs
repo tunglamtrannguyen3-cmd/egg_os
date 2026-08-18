@@ -1,37 +1,63 @@
 #![no_std]
 #![no_main]
+#![allow(dead_code)]
 
+mod drivers;
 mod hypercall;
 mod memory;
 mod vmm;
 
-use crate::memory::ept::EptPageTable;
-use crate::vmm::vmx::{vmptrld, vmwrite, vmxon};
 use core::panic::PanicInfo;
+use limine::request::ModulesRequest;
+
+#[used]
+#[unsafe(link_section = ".requests")]
+static MODULES_REQUEST: ModulesRequest = ModulesRequest::new();
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    // 1. Initialize Host Physical Memory & EPT Page Tables
     memory::ept::init_host_memory();
 
-    // 2. Initialize Hardware Virtualization (Intel VT-x / VMX)
-    if let Err(_err) = vmm::vmx::enable_vmx() {
-        // Fallback or log error via serial if VMX fails
+    let mut guest_entry_addr = 0u64;
+    let mut app_ramdisk_addr = 0u64;
+    let mut app_ramdisk_size = 0u64;
+
+    if let Some(resp) = MODULES_REQUEST.response() {
+        for module in resp.modules().iter() {
+            let cmd = module.cmdline();
+
+            // THE KERNEL DEV HACK:
+            // Since the crate made the fields private, we cast the struct
+            // to a raw 64-bit integer pointer and read the memory directly.
+            // Layout: [0] = revision, [1] = address, [2] = size
+            let file_ptr = *module as *const _ as *const u64;
+            let raw_addr = unsafe { *file_ptr.add(1) };
+            let raw_size = unsafe { *file_ptr.add(2) };
+
+            if cmd.contains("security_kernel") {
+                guest_entry_addr = raw_addr;
+            } else if cmd.contains("offline_app") {
+                app_ramdisk_addr = raw_addr;
+                app_ramdisk_size = raw_size;
+            }
+        }
+    }
+
+    if vmm::vmx::enable_vmx().is_err() {
         loop {
             x86_64::instructions::hlt();
         }
     }
 
-    // 3. Create Virtual Machine Control Structure (VMCS) for Guest
     let mut vcpu = vmm::VCpu::new(0);
-    vcpu.setup_vmcs();
+    vcpu.setup_vmcs(guest_entry_addr);
 
-    // 4. Hand off CPU control to the Guest Unikernel
-    vcpu.run();
+    // Pass ramdisk location via registers or shared state later
+    let _ = (app_ramdisk_addr, app_ramdisk_size);
 
-    // Reached if guest terminates
     loop {
-        x86_64::instructions::hlt();
+        let exit_reason = vcpu.run();
+        vmm::vmexit::handle_vmexit(&mut vcpu, exit_reason);
     }
 }
 
@@ -39,20 +65,5 @@ pub extern "C" fn _start() -> ! {
 fn panic(_info: &PanicInfo) -> ! {
     loop {
         x86_64::instructions::hlt();
-    }
-}
-
-pub fn init_hypervisor(vmxon_phys_addr: u64, vmcs_phys_addr: u64) {
-    let ept = EptPageTable::new();
-    // Test chunk loader logic (prepares guest memory / GUI framebuffer staging)
-    let dummy_buf = [0u8; crate::memory::ept::PAGE_SIZE];
-    let _ = crate::memory::ept::process_data_chunks(&dummy_buf, |_chunk, _offset| Ok(()));
-
-    unsafe {
-        let _ = vmxon(vmxon_phys_addr);
-        let _ = vmptrld(vmcs_phys_addr);
-
-        // Pass the raw pointer of EPT table to VMCS control field
-        vmwrite(0x00004000, &ept as *const _ as u64);
     }
 }
