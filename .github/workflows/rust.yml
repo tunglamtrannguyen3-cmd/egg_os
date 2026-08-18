@@ -37,17 +37,29 @@ jobs:
 
       - name: Assemble ISO Image
         run: |
-          mkdir -p iso_root/boot
+          mkdir -p iso_root/boot iso_root/limine
           cp target/x86_64-unknown-none/debug/host_kernel iso_root/boot/kernel.elf
 
-         
+          cat << 'EOF' > iso_root/limine.conf
+          timeout: 3
+
+          /EggOS
+              protocol: limine
+              kernel_path: boot():/boot/kernel.elf
+          EOF
+
+          cp iso_root/limine.conf iso_root/boot/limine.conf
+          cp iso_root/limine.conf iso_root/limine/limine.conf
+
           git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
           make -C limine
+          
+          cp -v limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
           cp -v limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/boot/
 
-          xorriso -as mkisofs -b boot/limine-bios-cd.bin \
+          xorriso -as mkisofs -b limine-bios-cd.bin \
                   -no-emul-boot -boot-load-size 4 -boot-info-table \
-                  --efi-boot boot/limine-uefi-cd.bin \
+                  --efi-boot limine-uefi-cd.bin \
                   -efi-boot-part --efi-boot-image --protective-msdos-label \
                   iso_root -o egg_os.iso
 
