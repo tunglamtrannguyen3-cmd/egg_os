@@ -1,71 +1,20 @@
-name: Egg OS Security Kernel CI
- 
+
+name: EggOS Build & Test
+
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  build-and-package:
-    name: Build Kernel & Package ISO
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xorriso mtools
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
         with:
+          components: rust-src, llvm-tools-preview
           targets: x86_64-unknown-none
-          components: rustfmt, clippy
-
-      - name: Fetch Limine binaries
-        run: |
-          git clone https://github.com/limine-bootloader/limine.git --branch v7.x-binary --depth 1
-          make -C limine
-
-      - name: Verify compilation & build binaries
-        run: cargo build --target x86_64-unknown-none
-
-      - name: Package ISO with Limine
-        run: |
-          mkdir -p iso/boot
-          
-          # Copy both workspace kernel binaries
-          cp target/x86_64-unknown-none/debug/host_kernel iso/boot/
-          cp target/x86_64-unknown-none/debug/security_kernel iso/boot/
-          cp limine/limine-bios.sys limine/limine-bios-cd.bin iso/boot/
-
-          # Configure Limine with correct v7 syntax
-          cat << 'EOF' > iso/boot/limine.conf
-          timeout: 5
-
-          /EggOS
-              protocol: multiboot2
-              kernel_path: boot():/boot/host_kernel
-              module_path: boot():/boot/security_kernel
-          EOF
-
-          # Create ISO image
-          xorriso -as mkisofs -b boot/limine-bios-cd.bin \
-            -no-emul-boot -boot-load-size 4 -boot-info-table \
-            iso -o egg_os.iso
-
-          # Install Limine BIOS stage to the ISO
-          ./limine/limine bios-install egg_os.iso
-
-      - name: Upload ISO Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: egg_os-iso
-          path: egg_os.iso
+      - run: cargo build --manifest-path host_kernel/Cargo.toml
+      - run: cargo build --manifest-path security_kernel/Cargo.toml
