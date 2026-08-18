@@ -1,31 +1,44 @@
+name: EggOS CI & ISO Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Allows manual run button in GitHub UI
+  
 - name: Assemble ISO Image
         run: |
           mkdir -p iso_root/boot iso_root/limine
           cp target/x86_64-unknown-none/debug/host_kernel iso_root/boot/kernel.elf
 
-          # Write limine.conf directly into iso_root/boot/
+          # Write limine.conf stripped of leading YAML indentation spaces
           cat << 'EOF' > iso_root/boot/limine.conf
-          timeout: 3
+timeout: 3
 
-          /EggOS
-              protocol: limine
-              kernel_path: boot():/boot/kernel.elf
-          EOF
+/EggOS
+    protocol: limine
+    kernel_path: boot():/boot/kernel.elf
+EOF
 
-          # Copy from boot/ to the other paths so Limine can't miss it
+          # Mirror config to root and limine directories
           cp iso_root/boot/limine.conf iso_root/limine.conf
           cp iso_root/boot/limine.conf iso_root/limine/limine.conf
 
+          # Clone and compile Limine v7 host tools
           git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
           make -C limine
 
+          # Copy Limine stage files to ISO root
           cp -v limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
           cp -v limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/boot/
 
+          # Generate hybrid bootable ISO
           xorriso -as mkisofs -b limine-bios-cd.bin \
                   -no-emul-boot -boot-load-size 4 -boot-info-table \
                   --efi-boot limine-uefi-cd.bin \
                   -efi-boot-part --efi-boot-image --protective-msdos-label \
                   iso_root -o egg_os.iso
 
+          # Install BIOS bootloader record
           ./limine/limine bios-install egg_os.iso
