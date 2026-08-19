@@ -25,45 +25,43 @@ jobs:
           cargo build --manifest-path host_kernel/Cargo.toml
           cargo build --manifest-path security_kernel/Cargo.toml
 
-      - name: Debug - Check Limine Files
+      - name: Prepare Limine
         run: |
           git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
-          echo "=== Limine directory contents ==="
-          ls -lah limine/
-          echo ""
-          echo "=== Looking for .bin files ==="
-          find limine -type f -name "*.bin" 2>/dev/null || echo "No .bin files found"
-          echo ""
-          echo "=== Looking for all bootloader files ==="
-          find limine -type f \( -name "*.bin" -o -name "*.EFI" -o -name "*.efi" -o -name "limine*" \) 2>/dev/null
-          echo ""
-          echo "=== Checking if make is needed ==="
-          file limine/limine-bios-cd.bin 2>/dev/null || echo "limine-bios-cd.bin doesn't exist"
-          file limine/BOOTX64.EFI 2>/dev/null || echo "BOOTX64.EFI doesn't exist"
+          make -C limine
 
-      - name: Assemble ISO
+      - name: Assemble ISO (UEFI)
         run: |
-          mkdir -p iso_root/boot/limine iso_root/limine
+          mkdir -p iso_root/boot iso_root/EFI/BOOT
           
-          # Copy binaries
-          cp target/x86_64-unknown-none/debug/host_kernel iso_root/boot/host_kernel
-          cp target/x86_64-unknown-none/debug/security_kernel iso_root/boot/security_kernel
-
+          # Copy kernel binaries
+          cp target/x86_64-unknown-none/debug/host_kernel iso_root/boot/
+          cp target/x86_64-unknown-none/debug/security_kernel iso_root/boot/
+          
           # Create limine.conf
-          printf "timeout: 3\n\n/EggOS Hypervisor\n    protocol: limine\n    kernel_path: boot():/boot/host_kernel\n    module_path: boot():/boot/security_kernel\n    module_cmdline: security_kernel\n" > iso_root/limine.conf
-          cp iso_root/limine.conf iso_root/boot/limine.conf
+          cat > iso_root/limine.conf << 'EOF'
+timeout: 3
 
-          # Copy Limine bootloader files (BIOS only for now)
-          cp limine/limine-bios-cd.bin iso_root/boot/limine/ || echo "WARNING: limine-bios-cd.bin not found"
-          cp limine/limine-bios.sys iso_root/boot/limine/ || echo "WARNING: limine-bios.sys not found"
-
-          # Build ISO (BIOS boot only)
+/EggOS Hypervisor
+    protocol: limine
+    kernel_path: boot():/boot/host_kernel
+    module_path: boot():/boot/security_kernel
+    module_cmdline: security_kernel
+EOF
+          
+          # Copy EFI bootloader
+          cp limine/BOOTX64.EFI iso_root/EFI/BOOT/
+          cp iso_root/limine.conf iso_root/EFI/BOOT/
+          
+          # Build ISO with UEFI boot
           xorriso -as mkisofs -R -J \
-            -b boot/limine/limine-bios-cd.bin \
-            -no-emul-boot -boot-load-size 4 -boot-info-table \
+            -e EFI/BOOT/BOOTX64.EFI \
+            -no-emul-boot \
+            -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
             iso_root -o egg_os.iso
-
-          ./limine/limine bios-install egg_os.iso
+          
+          # Install Limine UEFI to ISO
+          ./limine/limine uefi-install egg_os.iso
 
       - uses: actions/upload-artifact@v4
         with:
