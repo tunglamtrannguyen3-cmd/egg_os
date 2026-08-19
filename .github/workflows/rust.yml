@@ -1,23 +1,48 @@
+name: EggOS CI
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y xorriso mtools
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+          targets: x86_64-unknown-none
+
+      - name: Build Kernels
+        run: |
+          cargo build --manifest-path host_kernel/Cargo.toml
+          cargo build --manifest-path security_kernel/Cargo.toml
+
       - name: Assemble ISO
         run: |
-          mkdir -p iso_root/boot iso_root/limine
-
-          # Copy binaries to match boot():/boot/ paths
+          mkdir -p iso_root/boot/limine iso_root/limine
+          
+          # Copy binaries
           cp target/x86_64-unknown-none/debug/host_kernel iso_root/boot/host_kernel
           cp target/x86_64-unknown-none/debug/security_kernel iso_root/boot/security_kernel
 
-          # Copy configuration file
-          cp limine.conf iso_root/limine.conf
-          cp limine.conf iso_root/boot/limine.conf
+          # Create limine.conf
+          printf "timeout: 3\n\n/EggOS Hypervisor\n    protocol: limine\n    kernel_path: boot():/boot/host_kernel\n    module_path: boot():/boot/security_kernel\n    module_cmdline: security_kernel" > iso_root/limine.conf
+          cp iso_root/limine.conf iso_root/boot/limine.conf
 
-          # Fetch Limine binaries & build host tools
+          # Prepare Limine
           git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
           make -C limine
-
-          # Stage Limine boot files
           cp limine/limine-bios-cd.bin limine/limine-uefi-cd.bin limine/limine-bios.sys iso_root/boot/limine/
 
-          # Package ISO image (fixed EFI path below)
+          # Build ISO
           xorriso -as mkisofs -R -J \
             -b boot/limine/limine-bios-cd.bin \
             -no-emul-boot -boot-load-size 4 -boot-info-table \
@@ -25,5 +50,9 @@
             -efi-boot-part --efi-boot-image --protective-msdos-label \
             iso_root -o egg_os.iso
 
-          # Install BIOS boot stage
           ./limine/limine bios-install egg_os.iso
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: egg_os-iso
+          path: egg_os.iso
