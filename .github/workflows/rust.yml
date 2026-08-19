@@ -34,20 +34,18 @@ jobs:
           cp target/x86_64-unknown-none/debug/security_kernel iso_root/boot/security_kernel
 
           # Create limine.conf
-          printf "timeout: 3\n\n/EggOS Hypervisor\n    protocol: limine\n    kernel_path: boot():/boot/host_kernel\n    module_path: boot():/boot/security_kernel\n    module_cmdline: security_kernel" > iso_root/limine.conf
+          printf "timeout: 3\n\n/EggOS Hypervisor\n    protocol: limine\n    kernel_path: boot():/boot/host_kernel\n    module_path: boot():/boot/security_kernel\n    module_cmdline: security_kernel\n" > iso_root/limine.conf
           cp iso_root/limine.conf iso_root/boot/limine.conf
 
           # Prepare Limine
           git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
           make -C limine
-          cp limine/limine-bios-cd.bin limine/limine-uefi-cd.bin limine/limine-bios.sys iso_root/boot/limine/
+          cp limine/limine-bios-cd.bin limine/limine-bios.sys iso_root/boot/limine/
 
-          # Build ISO
+          # Build ISO (BIOS boot only)
           xorriso -as mkisofs -R -J \
             -b boot/limine/limine-bios-cd.bin \
             -no-emul-boot -boot-load-size 4 -boot-info-table \
-            --efi-boot boot/limine/limine-uefi-cd.bin \
-            -efi-boot-part --efi-boot-image --protective-msdos-label \
             iso_root -o egg_os.iso
 
           ./limine/limine bios-install egg_os.iso
