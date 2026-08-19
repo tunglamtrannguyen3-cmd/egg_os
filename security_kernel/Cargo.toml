@@ -9,6 +9,7 @@ x86_64.workspace = true
 spin.workspace = true
 bitflags.workspace = true
 volatile.workspace = true
+common = { path = "../common" }
 
 [[bin]]
 name = "security_kernel"

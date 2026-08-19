@@ -9,8 +9,6 @@ x86_64.workspace = true
 spin.workspace = true
 bitflags.workspace = true
 volatile.workspace = true
-limine = "0.6"
-x86 = "0.52.0"
 
 [[bin]]
 name = "host_kernel"
