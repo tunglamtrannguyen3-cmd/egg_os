@@ -2,7 +2,34 @@ name: EggOS CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master" ]name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust Toolchain
+      run: |
+        rustup toolchain install nightly --profile minimal --component rust-src
+        rustup target add x86_64-unknown-none
+
+    - name: Check Workspace
+      run: cargo check --workspace
+
+    - name: Build Workspace
+      run: cargo build --workspace
   workflow_dispatch:
 
 jobs:
