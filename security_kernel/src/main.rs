@@ -83,7 +83,7 @@ pub fn kernel_main() {
 }
 
 #[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     // Print location and reason to serial before infinite pause
     crate::arch::log("[SECURITY_KERNEL PANIC]\n");
     loop {
@@ -91,4 +91,3 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         core::arch::x86_64::_mm_pause();
     }
 }
-

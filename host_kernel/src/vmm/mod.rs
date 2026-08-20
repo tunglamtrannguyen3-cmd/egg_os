@@ -1,7 +1,7 @@
 pub mod vmexit;
 pub mod vmx;
 
-use core::arch::global_asm;
+use core::arch::{asm, global_asm};
 
 // Context switch stub between Hypervisor (Host) and Security Kernel (Guest)
 global_asm!(
@@ -31,6 +31,35 @@ global_asm!(
 
 extern "C" {
     pub fn run_vcpu_loop() -> u64;
+}
+
+#[inline]
+pub unsafe fn vmwrite(field: u64, val: u64) -> Result<(), ()> {
+    let error: u8;
+    asm!(
+        "vmwrite {0}, {1}",
+        "setc {2}",
+        in(reg) field,
+        in(reg) val,
+        out(reg_byte) error,
+        options(nostack)
+    );
+    if error == 0 { Ok(()) } else { Err(()) }
+}
+
+#[inline]
+pub unsafe fn vmread(field: u64) -> Result<u64, ()> {
+    let val: u64;
+    let error: u8;
+    asm!(
+        "vmread {0}, {1}",
+        "setc {2}",
+        out(reg) val,
+        in(reg) field,
+        out(reg_byte) error,
+        options(nostack)
+    );
+    if error == 0 { Ok(val) } else { Err(()) }
 }
 
 #[repr(C)]
@@ -72,7 +101,7 @@ impl VCpu {
 
         // Write guest entry point to VMCS field 0x0000681E (GUEST_RIP)
         unsafe {
-            let _ = x86::bits64::vmx::vmwrite(0x0000681E, guest_rip);
+            let _ = vmwrite(0x0000681E, guest_rip);
         }
     }
 
@@ -101,10 +130,9 @@ impl VCpu {
     }
 
     pub fn advance_guest_rip(&mut self, bytes: u64) {
-        let current_rip = unsafe { x86::bits64::vmx::vmread(0x0000681E).unwrap_or(0) };
+        let current_rip = unsafe { vmread(0x0000681E).unwrap_or(0) };
         unsafe {
-            let _ = x86::bits64::vmx::vmwrite(0x0000681E, current_rip + bytes);
+            let _ = vmwrite(0x0000681E, current_rip + bytes);
         }
     }
 }
-

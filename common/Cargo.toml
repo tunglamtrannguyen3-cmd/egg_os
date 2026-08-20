@@ -2,6 +2,15 @@
 name = "common"
 version = "0.1.0"
 edition = "2021"
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 
-[dependencies]
-
+[lib]
+name = "common"
+path = "src/lib.rs"
+crate-type = ["rlib"]
+harness = false
+test = false
+doctest = false

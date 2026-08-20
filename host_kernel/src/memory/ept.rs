@@ -1,11 +1,6 @@
-use limine::request::MemmapRequest;
 use spin::Mutex;
 
 pub const MAX_CHUNK_SIZE: usize = 64 * 1024; // 64 KiB cap
-
-#[used]
-#[unsafe(link_section = ".requests")]
-static MEMORY_MAP_REQUEST: MemmapRequest = MemmapRequest::new();
 
 pub static HOST_PHYSICAL_ALLOCATOR: Mutex<HostMemoryManager> = Mutex::new(HostMemoryManager::new());
 pub static BUMP_ALLOCATOR: Mutex<BumpAllocator> = Mutex::new(BumpAllocator::new());
@@ -23,31 +18,18 @@ impl HostMemoryManager {
         }
     }
 
+    /// Initialize usable physical memory bounds passed from bootloader
+    pub fn init(&mut self, base: u64, size: u64) {
+        self.next_alloc_ptr = (base + 4095) & !4095; // Page-align base
+        self.current_range_end = base + size;
+    }
+
     pub fn allocate_frame(&mut self) -> u64 {
         if self.next_alloc_ptr < self.current_range_end {
             let addr = self.next_alloc_ptr;
             self.next_alloc_ptr += 4096;
             return addr;
         }
-
-        if let Some(resp) = MEMORY_MAP_REQUEST.response() {
-            for entry in resp.entries().iter() {
-                let entry_ptr = *entry as *const _ as *const u64;
-                let base = unsafe { *entry_ptr.add(0) };
-                let len = unsafe { *entry_ptr.add(1) };
-                let mem_type = unsafe { *entry_ptr.add(2) };
-
-                if mem_type == 0 && base > self.next_alloc_ptr {
-                    self.next_alloc_ptr = (base + 4095) & !4095;
-                    self.current_range_end = base + len;
-
-                    let addr = self.next_alloc_ptr;
-                    self.next_alloc_ptr += 4096;
-                    return addr;
-                }
-            }
-        }
-
         0
     }
 }
@@ -101,8 +83,11 @@ where
 }
 
 pub fn init_host_memory() {
+    // Example: Pass free physical memory base/length set up by bootloader
+    // HOST_PHYSICAL_ALLOCATOR.lock().init(0x1000000, 0x10000000);
+
     let mut bump = BUMP_ALLOCATOR.lock();
-    
+
     // Allocate exact 3 bytes aligned to 1-byte boundary
     let _three_byte_addr = bump.alloc(3, 1);
 
