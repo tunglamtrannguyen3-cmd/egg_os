@@ -7,6 +7,5 @@ authors.workspace = true
 [dependencies]
 common = { path = "../common" }
 uefi = { workspace = true }
-uefi-services = { workspace = true }
 x86_64 = { workspace = true }
 log = { workspace = true }
