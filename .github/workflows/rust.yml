@@ -14,56 +14,71 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install Rust Toolchain & Target
-      run: |
-        rustup toolchain install nightly --profile minimal --component rust-src
-        rustup target add x86_64-unknown-uefi
-        rustup target add x86_64-unknown-none
+      # 1. Install Rust nightly with required targets and rust-src
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: x86_64-unknown-uefi, x86_64-unknown-none
+          components: rust-src
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y xorriso mtools dosfstools
+      # 2. Cache Cargo registry and target directories for faster builds
+      - name: Setup Swatinem Cargo Cache
+        uses: Swatinem/rust-cache@v2
 
-    - name: Build Bootloader (UEFI)
-      run: cargo build --release --package bootloader --target x86_64-unknown-uefi
+      # 3. Install system dependencies (xorriso, mtools, dosfstools)
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xorriso mtools dosfstools
 
-    - name: Build Kernels (Bare-Metal)
-      run: |
-        cargo build --release --package host_kernel --target x86_64-unknown-none
-        cargo build --package security_kernel --target x86_64-unknown-none || true
+      # 4. Build Bootloader
+      - name: Build Bootloader (UEFI)
+        run: cargo build --release --package bootloader --target x86_64-unknown-uefi
 
-    - name: Create FAT Partition Image for UEFI
-      run: |
-        # 1. Create a 64MB FAT image file
-        dd if=/dev/zero of=efiboot.img bs=1M count=64
-        mkfs.vfat -F 32 efiboot.img
+      # 5. Build Host Kernel & Security Kernel (Unikernel Host)
+      - name: Build Kernels (Bare-Metal)
+        run: |
+          cargo build --release --package host_kernel --target x86_64-unknown-none
+          cargo build --release --package security_kernel --target x86_64-unknown-none
 
-        # 2. Create the directory layout inside the FAT image using mtools
-        mmd -i efiboot.img ::/EFI
-        mmd -i efiboot.img ::/EFI/BOOT
+      # 6. Construct FAT32 EFI Partition Image
+      - name: Create FAT Partition Image
+        run: |
+          # Create a 64MB FAT image file
+          dd if=/dev/zero of=efiboot.img bs=1M count=64
+          mkfs.vfat -F 32 efiboot.img
 
-        # 3. Copy binaries into the FAT image
-        mcopy -i efiboot.img target/x86_64-unknown-uefi/release/bootloader.efi ::/EFI/BOOT/BOOTX64.EFI
-        mcopy -i efiboot.img target/x86_64-unknown-none/release/host_kernel ::/host_kernel
+          # Create UEFI directory layout
+          mmd -i efiboot.img ::/EFI
+          mmd -i efiboot.img ::/EFI/BOOT
 
-    - name: Generate Bootable UEFI ISO
-      run: |
-        mkdir -p iso_root
-        cp efiboot.img iso_root/
+          # Copy UEFI bootloader payload
+          mcopy -i efiboot.img target/x86_64-unknown-uefi/release/bootloader.efi ::/EFI/BOOT/BOOTX64.EFI
 
-        # Create hybrid ISO with UEFI El Torito boot record
-        xorriso -as mkisofs \
-          -e efiboot.img \
-          -no-emul-boot \
-          -isohybrid-gpt-basdat \
-          -o egg_os.iso iso_root
+          # Copy Host and Security Kernels into root partition
+          mcopy -i efiboot.img target/x86_64-unknown-none/release/host_kernel ::/host_kernel
+          mcopy -i efiboot.img target/x86_64-unknown-none/release/security_kernel ::/security_kernel
 
-    - name: Upload ISO Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: egg_os-iso
-        path: egg_os.iso
-        retention-days: 7
+      # 7. Generate Bootable Hybrid ISO Image
+      - name: Generate UEFI ISO
+        run: |
+          mkdir -p iso_root
+          cp efiboot.img iso_root/
+
+          xorriso -as mkisofs \
+            -e efiboot.img \
+            -no-emul-boot \
+            -isohybrid-gpt-basdat \
+            -volid "EGG_OS" \
+            -o egg_os.iso iso_root
+
+      # 8. Upload Artifact
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: egg_os-iso
+          path: egg_os.iso
+          retention-days: 7
