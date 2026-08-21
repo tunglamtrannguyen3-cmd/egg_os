@@ -14,56 +14,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Fetch source code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Install Rust nightly with required targets and rust-src
+      # 2. Set up Rust nightly toolchain with x86_64 targets and rust-src
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: x86_64-unknown-uefi, x86_64-unknown-none
           components: rust-src
 
-      # 2. Cache Cargo registry and target directories for faster builds
-      - name: Setup Swatinem Cargo Cache
+      # 3. Speed up workflow with build caching
+      - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      # 3. Install system dependencies (xorriso, mtools, dosfstools)
-      - name: Install Build Dependencies
+      # 4. Install ISO build utilities
+      - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xorriso mtools dosfstools
 
-      # 4. Build Bootloader
+      # 5. Build Bootloader (UEFI target)
       - name: Build Bootloader (UEFI)
         run: cargo build --release --package bootloader --target x86_64-unknown-uefi
 
-      # 5. Build Host Kernel & Security Kernel (Unikernel Host)
+      # 6. Build Kernels (Bare-metal target)
       - name: Build Kernels (Bare-Metal)
         run: |
           cargo build --release --package host_kernel --target x86_64-unknown-none
           cargo build --release --package security_kernel --target x86_64-unknown-none
 
-      # 6. Construct FAT32 EFI Partition Image
+      # 7. Create FAT32 Partition Image and populate binaries
       - name: Create FAT Partition Image
         run: |
+          set -e
           # Create a 64MB FAT image file
           dd if=/dev/zero of=efiboot.img bs=1M count=64
           mkfs.vfat -F 32 efiboot.img
 
-          # Create UEFI directory layout
+          # Create directory structure inside image
           mmd -i efiboot.img ::/EFI
           mmd -i efiboot.img ::/EFI/BOOT
 
-          # Copy UEFI bootloader payload
+          # Copy binaries into partition image
           mcopy -i efiboot.img target/x86_64-unknown-uefi/release/bootloader.efi ::/EFI/BOOT/BOOTX64.EFI
-
-          # Copy Host and Security Kernels into root partition
           mcopy -i efiboot.img target/x86_64-unknown-none/release/host_kernel ::/host_kernel
           mcopy -i efiboot.img target/x86_64-unknown-none/release/security_kernel ::/security_kernel
 
-      # 7. Generate Bootable Hybrid ISO Image
-      - name: Generate UEFI ISO
+      # 8. Create Hybrid UEFI ISO
+      - name: Generate Bootable UEFI ISO
         run: |
           mkdir -p iso_root
           cp efiboot.img iso_root/
@@ -75,7 +75,7 @@ jobs:
             -volid "EGG_OS" \
             -o egg_os.iso iso_root
 
-      # 8. Upload Artifact
+      # 9. Upload ISO as CI Artifact
       - name: Upload ISO Artifact
         uses: actions/upload-artifact@v4
         with:
