@@ -19,7 +19,6 @@ x86_64 = { version = "0.14.12", default-features = false, features = ["instructi
 volatile = "0.6.1"
 log = "0.4"
 uefi = "0.39.0"
-uefi-services = "0.26.0"
 
 [profile.release]
 panic = "abort"
