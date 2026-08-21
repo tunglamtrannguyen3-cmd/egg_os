@@ -16,7 +16,4 @@ extern "C" {
     ) -> !;
 }
 
-/// Disables CPU hardware interrupts (`cli`).
-pub unsafe fn disable_interrupts() {
-    core::arch::asm!("cli");
-}
+
