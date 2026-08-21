@@ -4,21 +4,29 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+extern crate alloc;
+
 mod arch;
 mod elf;
 mod fs;
 mod memory;
 
+use uefi::boot::{self, MemoryType};
 use uefi::prelude::*;
-use uefi::table::boot::MemoryType;
 
 #[entry]
-fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
+fn main() -> Status {
+    // 1. Initialize UEFI runtime helpers and heap allocator
+    uefi::helpers::init();
+
     #[cfg(test)]
     test_main();
 
+    // Acquire current image handle
+    let image_handle = boot::image_handle();
+
     // 1. Read host_kernel using fs module
-    let kernel_bytes = match fs::load_kernel_file(image_handle, &mut system_table) {
+    let kernel_bytes = match fs::load_kernel_file(image_handle) {
         Ok(bytes) => bytes,
         Err(_) => return Status::ABORTED,
     };
@@ -32,20 +40,29 @@ fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
     drop(kernel_bytes);
 
     // 3. Allocate stack & boot info using memory module
+    #[allow(unused_variables)]
     let stack_top = match memory::allocate_kernel_stack() {
         Ok(top) => top,
         Err(_) => return Status::ABORTED,
     };
 
-    let boot_info_ptr = match memory::build_boot_info(&mut system_table) {
+    // Access active SystemTable reference for build_boot_info
+    // 3. Allocate stack & boot info using memory module
+    let stack_top = match memory::allocate_kernel_stack() {
+        Ok(top) => top,
+        Err(_) => return Status::ABORTED,
+    };
+
+    // Call build_boot_info with 0 arguments to match memory.rs
+    let boot_info_ptr = match memory::build_boot_info() {
         Ok(ptr) => ptr,
         Err(_) => return Status::ABORTED,
     };
 
-    // 4. Exit boot services
-    let (_runtime_services, _memory_map) = system_table.exit_boot_services(MemoryType::LOADER_DATA);
+    // 4. Exit boot services passing Some(MemoryType::LOADER_DATA)
+    let _memory_map = unsafe { boot::exit_boot_services(Some(MemoryType::LOADER_DATA)) };
 
-    // 5. Jump to host kernel using the assembly routine in arch::x86_64
+    // 5. Jump to host kernel using assembly routine
     const BOOT_MAGIC: u64 = 0x2026_0000;
 
     unsafe {
@@ -55,6 +72,13 @@ fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
             BOOT_MAGIC,
             boot_info_ptr as *const common::BootInfo,
         );
+    }
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {
+        core::hint::spin_loop();
     }
 }
 
