@@ -15,6 +15,7 @@ use uefi::boot::{self, MemoryType};
 use uefi::prelude::*;
 
 #[entry]
+#![global_allocator]
 fn main() -> Status {
     // 1. Initialize UEFI runtime helpers and heap allocator
     uefi::helpers::init().unwrap();
