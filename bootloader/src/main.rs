@@ -17,7 +17,7 @@ use uefi::prelude::*;
 #[entry]
 fn main() -> Status {
     // 1. Initialize UEFI runtime helpers and heap allocator
-    uefi::helpers::init();
+    uefi::helpers::init().unwrap();
 
     #[cfg(test)]
     test_main();
