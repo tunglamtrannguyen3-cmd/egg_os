@@ -6,6 +6,6 @@ authors.workspace = true
 
 [dependencies]
 common = { path = "../common" }
-uefi = { workspace = true }
+uefi = { workspace = true, features = ["alloc", "global_allocator", "logger"] }
 x86_64 = { workspace = true }
 log = { workspace = true }
