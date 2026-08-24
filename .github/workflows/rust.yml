@@ -18,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Set up Rust nightly toolchain with x86_64 targets and rust-src
+      # 2. Set up Rust nightly toolchain with required x86_64 target triples
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
@@ -35,36 +35,42 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xorriso mtools dosfstools
 
-      # 5. Build Bootloader (UEFI target)
-      - name: Build Bootloader (UEFI)
+      # 5. Fast verification check across the entire workspace
+      - name: Workspace Check
+        run: cargo check --workspace
+
+      # 6. Build custom UEFI bootloader
+      - name: Build Custom Bootloader (UEFI)
         run: cargo build --release --package bootloader --target x86_64-unknown-uefi
 
-      # 6. Build Kernels (Bare-metal target)
+      # 7. Build Host Kernel and Virtual Kernel
       - name: Build Kernels (Bare-Metal)
         run: |
           cargo build --release --package host_kernel --target x86_64-unknown-none
-          cargo build --release --package security_kernel --target x86_64-unknown-none
+          cargo build --release --package virtual_kernel --target x86_64-unknown-none
 
-      # 7. Create FAT32 Partition Image and populate binaries
+      # 8. Create FAT32 Partition Image and populate custom bootloader + kernel binaries
       - name: Create FAT Partition Image
         run: |
           set -e
-          # Create a 64MB FAT image file
           dd if=/dev/zero of=efiboot.img bs=1M count=64
           mkfs.vfat -F 32 efiboot.img
 
-          # Create directory structure inside image
+          # Create UEFI boot directory structure
           mmd -i efiboot.img ::/EFI
           mmd -i efiboot.img ::/EFI/BOOT
 
-          # Copy binaries into partition image
+          # Install custom UEFI bootloader as default EFI payload
           mcopy -i efiboot.img target/x86_64-unknown-uefi/release/bootloader.efi ::/EFI/BOOT/BOOTX64.EFI
-          mcopy -i efiboot.img target/x86_64-unknown-none/release/host_kernel ::/host_kernel
-          mcopy -i efiboot.img target/x86_64-unknown-none/release/security_kernel ::/security_kernel
 
-      # 8. Create Hybrid UEFI ISO
+          # Copy Host Kernel and Virtual Kernel binaries for custom ELF loader to read
+          mcopy -i efiboot.img target/x86_64-unknown-none/release/host_kernel ::/host_kernel
+          mcopy -i efiboot.img target/x86_64-unknown-none/release/virtual_kernel ::/virtual_kernel
+
+      # 9. Generate Hybrid UEFI ISO
       - name: Generate Bootable UEFI ISO
         run: |
+          rm -rf iso_root
           mkdir -p iso_root
           cp efiboot.img iso_root/
 
@@ -75,7 +81,7 @@ jobs:
             -volid "EGG_OS" \
             -o egg_os.iso iso_root
 
-      # 9. Upload ISO as CI Artifact
+      # 10. Upload ISO as CI Artifact
       - name: Upload ISO Artifact
         uses: actions/upload-artifact@v4
         with:

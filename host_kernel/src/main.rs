@@ -10,12 +10,21 @@ mod vmm;
 use common::ModulesRequest;
 use core::panic::PanicInfo;
 
+/// 4KB-aligned physical page frame required for VMXON
+#[repr(C, align(4096))]
+struct AlignedPage([u8; 4096]);
+
+static mut VMXON_REGION: AlignedPage = AlignedPage([0; 4096]);
+
 #[used]
 #[unsafe(link_section = ".requests")]
 static MODULES_REQUEST: ModulesRequest = ModulesRequest::new();
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    // Initialize serial output for host_kernel println debugging
+    drivers::serial::SerialPort::init();
+    
     memory::ept::init_host_memory();
 
     let mut guest_entry_addr = 0u64;
@@ -27,7 +36,7 @@ pub extern "C" fn _start() -> ! {
             core::slice::from_raw_parts(resp.modules, resp.module_count as usize)
         };
 
-        // Module 0: Security Kernel, Module 1: Offline App Ramdisk
+        // Module 0: Virtual Kernel, Module 1: Offline App Ramdisk
         if let Some(kernel_mod) = modules.get(0) {
             guest_entry_addr = kernel_mod.base_address;
         }
@@ -43,7 +52,10 @@ pub extern "C" fn _start() -> ! {
         }
     }
 
-    if vmm::vmx::enable_vmx().is_err() {
+    // Obtain the 4KB-aligned physical address of the VMXON region
+    let vmxon_paddr = core::ptr::addr_of_mut!(VMXON_REGION) as u64;
+
+    if vmm::vmx::enable_vmx(vmxon_paddr).is_err() {
         loop {
             x86_64::instructions::hlt();
         }

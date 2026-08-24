@@ -2,6 +2,12 @@ pub mod vmexit;
 pub mod vmx;
 
 use core::arch::{asm, global_asm};
+use x86_64::registers::control::{Cr0, Cr3, Cr4};
+
+#[repr(C, align(4096))]
+struct VmcsPage([u8; 4096]);
+
+static mut VMCS_REGION: VmcsPage = VmcsPage([0; 4096]);
 
 // Context switch stub between Hypervisor (Host) and Security Kernel (Guest)
 global_asm!(
@@ -96,15 +102,30 @@ impl VCpu {
         }
     }
 
-    pub fn setup_vmcs(&mut self, guest_rip: u64) {
-        vmx::init_vmcs_region();
+   pub fn setup_vmcs(&mut self, guest_rip: u64) {
+        let vmcs_paddr = core::ptr::addr_of_mut!(VMCS_REGION) as u64;
+        let eptp = crate::memory::ept::get_eptp();
 
-        // Write guest entry point to VMCS field 0x0000681E (GUEST_RIP)
-        unsafe {
-            let _ = vmwrite(0x0000681E, guest_rip);
-        }
+        let (host_cr3_frame, _) = Cr3::read();
+        let host_cr3 = host_cr3_frame.start_address().as_u64();
+
+        let guest_cr0 = Cr0::read_raw();
+        let guest_cr3 = host_cr3;
+        let guest_cr4 = Cr4::read_raw();
+        let guest_rsp = 0x8000_0000u64;
+
+        vmx::init_vmcs_region(
+            vmcs_paddr,
+            eptp,
+            guest_rip,
+            guest_rsp,
+            guest_cr0,
+            guest_cr3,
+            guest_cr4,
+            host_cr3,
+        )
+        .expect("Failed to initialize VMCS region");
     }
-
     pub fn run(&mut self) -> u64 {
         unsafe { run_vcpu_loop() }
     }

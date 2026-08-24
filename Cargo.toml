@@ -3,7 +3,7 @@ members = [
     "bootloader",
     "common",
     "host_kernel",
-    "security_kernel",
+    "virtual_kernel",
 ]
 resolver = "2"
 

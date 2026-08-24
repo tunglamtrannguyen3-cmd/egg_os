@@ -94,3 +94,36 @@ pub fn init_host_memory() {
     let sample_data = [0u8; 64];
     process_data_chunks(&sample_data, |_chunk| {});
 }
+
+pub struct Ept {
+    pml4_addr: u64,
+}
+
+impl Ept {
+    /// Constructs the 64-bit EPTP value required by the VMCS.
+    /// Bit 0:2 = Memory Type (6 = Write Back)
+    /// Bit 3:5 = Page Walk Length minus 1 (3 = 4 levels)
+    pub fn eptp(&self) -> u64 {
+        let memory_type = 6u64; // Write-Back (WB)
+        let page_walk_length = 3u64 << 3; // 4-level page walk
+        (self.pml4_addr & !0xFFF) | page_walk_length | memory_type
+    }
+}
+
+static mut GLOBAL_EPT_PML4: u64 = 0;
+
+/// Returns the current physical EPTP for VMCS initialization.
+pub fn get_eptp() -> u64 {
+    unsafe {
+        let pml4 = GLOBAL_EPT_PML4;
+        let memory_type = 6u64;
+        let page_walk_length = 3u64 << 3;
+        (pml4 & !0xFFF) | page_walk_length | memory_type
+    }
+}
+
+pub fn init_ept(pml4_phys_addr: u64) {
+    unsafe {
+        GLOBAL_EPT_PML4 = pml4_phys_addr;
+    }
+}
