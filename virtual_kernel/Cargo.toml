@@ -12,6 +12,6 @@ volatile.workspace = true
 common = { path = "../common" }
 
 [[bin]]
-name = "security_kernel"
+name = "virtual_kernel"
 path = "src/main.rs"
 harness = false
