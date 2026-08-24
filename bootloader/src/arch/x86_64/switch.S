@@ -1,34 +1,39 @@
 /* ============================================================================
    switch.S - UEFI → Kernel Transition (x86_64)
-   Intel Syntax version
+   Hardened version
    ============================================================================ */
 
 .section .text
 .global jump_to_kernel
 
 /*
-    jump_to_kernel(
-        rdi = kernel_entry,
-        rsi = new_stack,
-        rdx = magic,
-        rcx = boot_info_ptr
-    )
+    System V AMD64 Calling Convention:
+
+    On entry to this function:
+        rdi = kernel_entry      (u64)
+        rsi = new_stack         (u64)
+        rdx = magic             (u64)
+        rcx = boot_info_ptr     (u64)
+
+    On entry to the kernel:
+        rdi = magic
+        rsi = boot_info_ptr
 */
 jump_to_kernel:
-    /* Disable interrupts */
+    /* === 1. Disable interrupts immediately === */
     cli
 
-    /* Preserve kernel_entry */
+    /* === 2. Save kernel entry point (rdi will be overwritten) === */
     mov     rax, rdi
 
-    /* Set new stack (16-byte aligned) */
+    /* === 3. Switch to the new kernel stack and force 16-byte alignment === */
     mov     rsp, rsi
-    and     rsp, -16
+    and     rsp, -16                 /* RSP must be 0 mod 16 */
 
-    /* Clear direction flag */
-    cld
+    /* === 4. ABI requirements === */
+    cld                              /* Direction flag must be clear */
 
-    /* Zero unused registers */
+    /* === 5. Zero caller-saved / unused registers for cleanliness === */
     xor     rbx, rbx
     xor     rbp, rbp
     xor     r8,  r8
@@ -40,16 +45,14 @@ jump_to_kernel:
     xor     r14, r14
     xor     r15, r15
 
-    /* System V ABI arguments for kernel:
-       rdi = magic
-       rsi = boot_info_ptr
-    */
-    mov     rdi, rdx
-    mov     rsi, rcx
+    /* === 6. Prepare arguments for the kernel === */
+    mov     rdi, rdx                 /* rdi = magic */
+    mov     rsi, rcx                 /* rsi = boot_info_ptr */
 
-    /* Jump to kernel (never returns) */
+    /* === 7. Jump to kernel (never returns) === */
     jmp     rax
 
+/* Safety hang if anything goes wrong */
 .hang:
     cli
     hlt

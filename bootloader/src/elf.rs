@@ -1,4 +1,5 @@
 use core::ptr;
+use uefi::boot::{self, AllocateType, MemoryType};
 
 const ELF_MAGIC: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 const PT_LOAD: u32 = 1;
@@ -45,15 +46,17 @@ pub fn parse_and_map(buffer: &[u8]) -> Result<LoadedElf, &'static str> {
     }
 
     let header_ptr = buffer.as_ptr() as *const Elf64Header;
-    let header = unsafe { &*header_ptr };
-
-    if header.e_ident[0..4] != ELF_MAGIC {
+    
+    // Safety: Read header safely using unaligned reads to avoid UB on packed structs
+    let e_ident = unsafe { ptr::addr_of!((*header_ptr).e_ident).read_unaligned() };
+    if &e_ident[0..4] != ELF_MAGIC {
         return Err("Invalid ELF magic number");
     }
 
-    let phoff = header.e_phoff as usize;
-    let phentsize = header.e_phentsize as usize;
-    let phnum = header.e_phnum as usize;
+    let e_entry = unsafe { ptr::addr_of!((*header_ptr).e_entry).read_unaligned() };
+    let phoff = unsafe { ptr::addr_of!((*header_ptr).e_phoff).read_unaligned() } as usize;
+    let phentsize = unsafe { ptr::addr_of!((*header_ptr).e_phentsize).read_unaligned() } as usize;
+    let phnum = unsafe { ptr::addr_of!((*header_ptr).e_phnum).read_unaligned() } as usize;
 
     for i in 0..phnum {
         let offset = phoff + i * phentsize;
@@ -62,26 +65,54 @@ pub fn parse_and_map(buffer: &[u8]) -> Result<LoadedElf, &'static str> {
         }
 
         let phdr_ptr = unsafe { buffer.as_ptr().add(offset) as *const Elf64Phdr };
-        let phdr = unsafe { &*phdr_ptr };
+        let p_type = unsafe { ptr::addr_of!((*phdr_ptr).p_type).read_unaligned() };
 
-        if phdr.p_type == PT_LOAD {
-            let dest = phdr.p_paddr as *mut u8;
-            let src_offset = phdr.p_offset as usize;
-            let filesz = phdr.p_filesz as usize;
-            let memsz = phdr.p_memsz as usize;
+        if p_type == PT_LOAD {
+            let p_vaddr = unsafe { ptr::addr_of!((*phdr_ptr).p_vaddr).read_unaligned() };
+            let p_offset = unsafe { ptr::addr_of!((*phdr_ptr).p_offset).read_unaligned() } as usize;
+            let filesz = unsafe { ptr::addr_of!((*phdr_ptr).p_filesz).read_unaligned() } as usize;
+            let memsz = unsafe { ptr::addr_of!((*phdr_ptr).p_memsz).read_unaligned() } as usize;
 
+            // Convert higher-half virtual address (0xFFFFFFFF80100000) to physical address offset
+            // Assuming higher-half mapping where 0xFFFFFFFF80000000 maps to Physical 0x0
+            let phys_addr = if p_vaddr >= 0xffff_ffff_8000_0000 {
+                p_vaddr - 0xffff_ffff_8000_0000
+            } else {
+                p_vaddr
+            };
+
+            let pages = (memsz + 4095) / 4096;
+            
+            // Allocate physical pages using UEFI Boot Services
+            // Allocate physical pages using UEFI Boot Services
+            let dest_ptr: *mut u8 = if phys_addr != 0 {
+                let _ = boot::allocate_pages(
+                    AllocateType::Address(phys_addr),
+                    MemoryType::LOADER_DATA,
+                    pages,
+                );
+                phys_addr as *mut u8
+            } else {
+                let ptr = boot::allocate_pages(
+                    AllocateType::AnyPages,
+                    MemoryType::LOADER_DATA,
+                    pages,
+                ).map_err(|_| "Failed to allocate physical memory for ELF segment")?;
+                
+                ptr.as_ptr()
+            };
             unsafe {
                 if filesz > 0 {
-                    ptr::copy_nonoverlapping(buffer.as_ptr().add(src_offset), dest, filesz);
+                    ptr::copy_nonoverlapping(buffer.as_ptr().add(p_offset), dest_ptr, filesz);
                 }
                 if memsz > filesz {
-                    ptr::write_bytes(dest.add(filesz), 0, memsz - filesz);
+                    ptr::write_bytes(dest_ptr.add(filesz), 0, memsz - filesz);
                 }
             }
         }
     }
 
     Ok(LoadedElf {
-        entry_point: header.e_entry,
+        entry_point: e_entry,
     })
 }

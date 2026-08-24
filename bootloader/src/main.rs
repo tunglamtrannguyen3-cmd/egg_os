@@ -15,7 +15,6 @@ use uefi::boot::{self, MemoryType};
 use uefi::prelude::*;
 
 #[entry]
-
 fn main() -> Status {
     // 1. Initialize UEFI runtime helpers and heap allocator
     uefi::helpers::init().unwrap();
@@ -29,35 +28,38 @@ fn main() -> Status {
     // 1. Read host_kernel using fs module
     let kernel_bytes = match fs::load_kernel_file(image_handle) {
         Ok(bytes) => bytes,
-        Err(_) => return Status::ABORTED,
+        Err(_) => {
+            log::error!("Failed to load kernel file!");
+            loop { core::hint::spin_loop(); }
+        }
     };
 
     // 2. Parse ELF headers
     let loaded_elf = match elf::parse_and_map(&kernel_bytes) {
         Ok(elf) => elf,
-        Err(_) => return Status::ABORTED,
+        Err(_) => {
+            log::error!("Failed to parse/map ELF binary!");
+            loop { core::hint::spin_loop(); }
+        }
     };
 
     drop(kernel_bytes);
 
     // 3. Allocate stack & boot info using memory module
-    #[allow(unused_variables)]
     let stack_top = match memory::allocate_kernel_stack() {
         Ok(top) => top,
-        Err(_) => return Status::ABORTED,
+        Err(_) => {
+            log::error!("Failed to allocate kernel stack!");
+            loop { core::hint::spin_loop(); }
+        }
     };
 
-    // Access active SystemTable reference for build_boot_info
-    // 3. Allocate stack & boot info using memory module
-    let stack_top = match memory::allocate_kernel_stack() {
-        Ok(top) => top,
-        Err(_) => return Status::ABORTED,
-    };
-
-    // Call build_boot_info with 0 arguments to match memory.rs
     let boot_info_ptr = match memory::build_boot_info() {
         Ok(ptr) => ptr,
-        Err(_) => return Status::ABORTED,
+        Err(_) => {
+            log::error!("Failed to build boot info!");
+            loop { core::hint::spin_loop(); }
+        }
     };
 
     // 4. Exit boot services passing Some(MemoryType::LOADER_DATA)
