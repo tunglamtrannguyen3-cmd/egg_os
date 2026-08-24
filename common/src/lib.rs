@@ -17,8 +17,8 @@ pub struct BootInfo {
     pub magic: u64,
     pub memory_map_ptr: *const MemoryMapEntry,
     pub memory_map_len: usize,
-    pub security_kernel_addr: u64,
-    pub security_kernel_size: u64,
+    pub virtual_kernel_addr: u64,
+    pub virtual_kernel_size: u64,
 }
 
 #[repr(C)]
