@@ -10,6 +10,7 @@ spin.workspace = true
 bitflags.workspace = true
 volatile.workspace = true
 common = { path = "../common" }
+lazy_static.workspace = true
 
 [[bin]]
 name = "host_kernel"

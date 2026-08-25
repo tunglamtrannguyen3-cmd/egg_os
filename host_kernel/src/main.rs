@@ -1,7 +1,9 @@
 #![no_std]
 #![no_main]
 #![allow(dead_code)]
+#![feature(abi_x86_interrupt)]
 
+mod arch;
 mod drivers;
 mod hypercall;
 mod memory;
@@ -22,9 +24,14 @@ static MODULES_REQUEST: ModulesRequest = ModulesRequest::new();
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    // Initialize serial output for host_kernel println debugging
+    // 1. MUST BE FIRST: Load GDT & IDT immediately
+    // Traps exceptions and page faults before hardware access or VMX setup can triple fault
+    arch::init();
+
+    // 2. Initialize serial output for host_kernel println debugging
     drivers::serial::SerialPort::init();
-    
+
+    // 3. Initialize host memory & EPT paging
     memory::ept::init_host_memory();
 
     let mut guest_entry_addr = 0u64;
@@ -47,6 +54,7 @@ pub extern "C" fn _start() -> ! {
     }
 
     if guest_entry_addr == 0 {
+        println!("Error: Virtual kernel entry address is 0!");
         loop {
             x86_64::instructions::hlt();
         }
@@ -56,6 +64,7 @@ pub extern "C" fn _start() -> ! {
     let vmxon_paddr = core::ptr::addr_of_mut!(VMXON_REGION) as u64;
 
     if vmm::vmx::enable_vmx(vmxon_paddr).is_err() {
+        println!("Error: Failed to enable VMX!");
         loop {
             x86_64::instructions::hlt();
         }
@@ -73,7 +82,8 @@ pub extern "C" fn _start() -> ! {
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    println!("HOST KERNEL PANIC: {}", info);
     loop {
         x86_64::instructions::hlt();
     }
